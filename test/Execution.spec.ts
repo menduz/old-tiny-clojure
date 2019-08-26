@@ -38,10 +38,6 @@ describe('Execution', () => {
   async function toJs(atom: Nodes.Atom, ctx: any, ctx2: any): Promise<any> {
     if (atom instanceof Nodes.LiteralNode) {
       return atom.value;
-    } else if (atom instanceof Nodes.List) {
-      return Promise.all(atom.values.map(toJs));
-    } else if (atom instanceof Nodes.Var) {
-      return `#'${atom.sym.fqn}`;
     } else if (atom instanceof Nodes.Lazy) {
       return await atom.sval();
     } else if (atom instanceof Nodes.PersistentVector) {
@@ -50,6 +46,8 @@ describe('Execution', () => {
       return new Set(await Promise.all(atom.values.map(toJs)));
     } else if (atom instanceof Nodes.Nil) {
       return null;
+    } else if (atom instanceof Nodes.Var) {
+      return atom.toString();
     } else if (atom instanceof Nodes.Keyword) {
       return atom.name;
     } else if (atom instanceof Nodes.PersistentArrayMap) {
@@ -66,29 +64,29 @@ describe('Execution', () => {
       return obj;
     }
 
-    return atom;
+    return { code: atom.toString() };
   }
 
-  describe('Execution', function() {
-    function test(src: string, result: (x: any) => void) {
-      testParseToken(
-        src,
-        getFileName(),
-        'Document',
-        async (a, b) => {
-          if (!a) throw b || new Error('error');
-          const interp = new Interpreter(a.parsingContext, {});
-          try {
-            result(await toJs(await interp.run(a.moduleName), new ExecutionContext(interp.lib), a.parsingContext));
-          } catch (e) {
-            failWithErrors('execution', a.parsingContext);
-            throw e;
-          }
-        },
-        phases
-      );
-    }
+  function test(src: string, result: (x: any) => void) {
+    testParseToken(
+      src,
+      getFileName(),
+      'Document',
+      async (a, b) => {
+        if (!a) throw b || new Error('error');
+        const interp = new Interpreter(a.parsingContext, {});
+        try {
+          result(await toJs(await interp.run(a.moduleName), new ExecutionContext(interp.lib), a.parsingContext));
+        } catch (e) {
+          failWithErrors('execution', a.parsingContext);
+          throw e;
+        }
+      },
+      phases
+    );
+  }
 
+  describe('basics', () => {
     test(`1223`, x => expect(x).toEqual([1223]));
     test(`[1 2 [3]]`, x => expect(x).toEqual([[1, 2, [3]]]));
     test(`[1 2 [3]]`, x => expect(x).toEqual([[1, 2, [3]]]));
@@ -120,12 +118,19 @@ describe('Execution', () => {
     `, x => expect(x).toEqual([{ b: 2, a: 1 }]));
 
     test(`
-      #{:x 1 :y 2 :z 3}
+      #{:x 1 :y 2 :z 3 1 1 1 2 :z :z}
     `, x => expect(x).toEqual([new Set(['x', 1, 'y', 2, 'z', 3])]));
 
     test(`
       (:x {:x 1 :y 2 :z 3})
     `, x => expect(x).toEqual([1]));
+
+    test(`
+      (def x y)
+      (def y z)
+      (def z 12)
+      x
+    `, x => expect(x).toEqual(["#'x", "#'y", "#'z", 12]));
 
     test(`
       (def ^:private xyz 1)
@@ -137,5 +142,24 @@ describe('Execution', () => {
        :asd     (:asd (meta #'xyz))
        :meta1   (meta 1)}
     `, x => expect(x).toEqual(["#'xyz", { key: "#'xyz", value: 1, deref: 1, private: true, asd: null, meta1: null }]));
+  });
+
+  describe('quoting', () => {
+    test(`
+      '(def x y)
+    `, x => expect(x).toEqual([{ code: '(def x y)' }]));
+
+    test(`
+      (def x 'y)
+      x
+    `, x => expect(x).toEqual(["#'x", { code: 'y' }]));
+
+    test(`
+      (core/quote (def x y))
+    `, x => expect(x).toEqual([{ code: '(def x y)' }]));
+
+    test(`
+      (core/quote asd)
+    `, x => expect(x).toEqual([{ code: 'asd' }]));
   });
 });

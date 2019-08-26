@@ -107,7 +107,14 @@ const builtIns: Record<string, BuiltInFunction> = {
       throw parsingContext.messageCollector.error(e);
     }
 
-    return new Nodes.List(result);
+    return new Nodes.PersistentVector(result);
+  },
+  'core/quote': async function(input, _, parsingContext) {
+    if (input.values.length < 1) {
+      throw parsingContext.messageCollector.error(new LysSemanticError(`(core/quote .): Missing argument`, input));
+    }
+
+    return input.values[1] || NilValue;
   }
 };
 
