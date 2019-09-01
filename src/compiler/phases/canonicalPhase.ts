@@ -69,7 +69,8 @@ const visitor = {
     return Nodes.PersistentSet.fromValues(astNode.children.map(visit));
   },
   Lambda(astNode: Nodes.ASTNode) {
-    return new Nodes.FunctionNode(astNode.children.map(visit));
+    // TODO implement reader macro
+    return new Nodes.List(astNode.children.map(visit));
   },
   Quote(astNode: Nodes.ASTNode) {
     return new Nodes.List([new Nodes.SymbolNode('core', 'quote', 'core/quote')].concat(astNode.children.map(visit)));

@@ -162,4 +162,38 @@ describe('Execution', () => {
       (core/quote asd)
     `, x => expect(x).toEqual([{ code: 'asd' }]));
   });
+
+  describe('functions', () => {
+    test(`
+      ((fn* fun1 [x] x) 1)
+    `, x => expect(x).toEqual([1]));
+
+    test(`
+      ((fn* fun2 [x] 123) 1)
+    `, x => expect(x).toEqual([123]));
+
+    test(`
+      (def x (fn* fun1 [y] (fn* fun2 [z] y)))
+      ((x 1) 2)
+    `, x => expect(x).toEqual(["#'x", 1]));
+
+    test(`
+      (def x (fn* fun1 [y] (fn* fun2 [z] z)))
+      ((x 1) 2)
+    `, x => expect(x).toEqual(["#'x", 2]));
+
+    test(`
+      (fn* fun1 [y] (fn* fun2 [z] z))
+    `, x => expect(x).toEqual([{code: "#context-bound-fn (fn* fun1\n  [y]\n  (fn* fun2 [z] z))"}]));
+
+    test(`
+      (def x (fn* fun1 [y] (fn* fun2 [z] z)))
+      (x 1)
+    `, x => expect(x).toEqual(["#'x", {code: "#context-bound-fn (fn* fun2\n  [z]\n  z)"}]));
+
+    test(`
+      (def identity (fn* fun1 [x] x))
+      (identity 1)
+    `, x => expect(x).toEqual(["#'identity", 1]));
+  });
 });

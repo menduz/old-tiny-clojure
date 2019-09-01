@@ -1,12 +1,18 @@
-import { ExecutionContext, NilValue } from './ExecutionContext';
+import { ExecutionContext } from './ExecutionContext';
 import { ParsingContext } from '../compiler/ParsingContext';
 import { Nodes, PhaseFlags } from '../compiler/nodes';
 import { BuiltInFunction } from './Value';
 import { LysSemanticError, PositionCapableError } from '../compiler/NodeError';
+import { last } from '../compiler/helpers';
+
+const NilValue = Nodes.Nil.instance;
 
 const builtIns: Record<string, BuiltInFunction> = {
   include: async function(_input, _context, _parsingContext) {
     return NilValue; // a  interpret(parse(`()`), context, parsingContext);
+  },
+  'fn*': async function(input, context, _) {
+    return new Nodes.FunctionNode(input.values.splice(1), context);
   },
   def: async function(input, context, parsingContext) {
     const sym = input.values[1];
@@ -134,11 +140,10 @@ async function interpretList(input: Nodes.List, context: ExecutionContext, parsi
       }
 
       throw parsingContext.messageCollector.error(new LysSemanticError(`Cannot resolve symbol "${first}"`, first));
-    } else if (first instanceof Nodes.Keyword) {
-      return call(first, input, context, parsingContext);
+    } else {
+      const fn = await interpret(first, context, parsingContext);
+      return call(fn, input, context, parsingContext);
     }
-
-    throw parsingContext.messageCollector.error(new LysSemanticError(`Atom "${first}" is not callable`, input));
   } else {
     return Nodes.List.EMPTY;
   }
@@ -146,7 +151,33 @@ async function interpretList(input: Nodes.List, context: ExecutionContext, parsi
 
 async function call(fn: Nodes.Atom, input: Nodes.List, context: ExecutionContext, parsingContext: ParsingContext) {
   if (fn instanceof Nodes.FunctionNode) {
-    return fn;
+    const scope = new Map();
+
+    const childContext = new ExecutionContext(scope, fn.context);
+
+    fn.params.values.forEach((sym, ix) => {
+      if (sym instanceof Nodes.SymbolNode) {
+        const value = input.values[ix + 1];
+        const variable = new Nodes.Var(sym, async () =>
+          value ? (await interpret(value, context, parsingContext)) || NilValue : NilValue
+        );
+
+        context.scope.set(sym.name, variable);
+
+        return variable;
+      } else {
+        throw parsingContext.messageCollector.error(new LysSemanticError(`Parameters must be Symbol`, sym));
+      }
+    });
+
+    const list: Nodes.Atom[] = [];
+    const body = fn.body;
+
+    for (let i = 0; i < body.length; i++) {
+      list.push(await interpret(body[i], childContext, parsingContext));
+    }
+
+    return last(list) || NilValue;
   }
 
   if (fn instanceof Nodes.Keyword) {
@@ -165,9 +196,7 @@ async function call(fn: Nodes.Atom, input: Nodes.List, context: ExecutionContext
     return NilValue;
   }
 
-  throw parsingContext.messageCollector.error(
-    new LysSemanticError(`${fn.nodeName} is not a function`, input.values[0])
-  );
+  throw parsingContext.messageCollector.error(new LysSemanticError(`${fn} is not a function`, input.values[0]));
 }
 
 async function interpret(

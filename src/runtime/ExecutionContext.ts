@@ -1,7 +1,6 @@
 import { Nodes } from '../compiler/nodes';
 
-export const NilValue = new Nodes.Nil();
-export const NilVar: Nodes.Var = new Nodes.Var(Nodes.SymbolNode.fromFQN('core/nil'), async () => NilValue);
+export const NilVar: Nodes.Var = new Nodes.Var(Nodes.SymbolNode.fromFQN('core/nil'), async () => Nodes.Nil.instance);
 
 export class ExecutionContext {
   constructor(public scope: Map<string, Nodes.Var>, public parent?: ExecutionContext) {}

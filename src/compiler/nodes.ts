@@ -1,5 +1,5 @@
 import { TokenError } from 'ebnf';
-import { IPositionCapable } from './NodeError';
+import { IPositionCapable, LysSemanticError } from './NodeError';
 import { indent } from '../utils/astPrinter';
 
 export enum PhaseFlags {
@@ -336,12 +336,32 @@ export namespace Nodes {
   }
 
   export class FunctionNode extends Atom {
-    constructor(public children: Atom[]) {
+    constructor(public children: Atom[], public context: any) {
       super();
     }
 
+    get functionName(): SymbolNode {
+      const v = this.children[0];
+      if (v instanceof SymbolNode) {
+        return v;
+      }
+      throw new LysSemanticError(`Function name must be a Symbol`, this);
+    }
+
+    get params(): PersistentVector {
+      const v = this.children[1];
+      if (v instanceof PersistentVector) {
+        return v;
+      }
+      throw new LysSemanticError(`Function parameters must be a vector`, this);
+    }
+
+    get body(): Atom[] {
+      return this.children.slice(2);
+    }
+
     toString() {
-      return `(fn* ${indent(this.children.join('\n'))})`;
+      return `#context-bound-fn (fn* ${indent(this.children.join('\n')).trimLeft()})`;
     }
   }
 
@@ -352,6 +372,7 @@ export namespace Nodes {
   }
 
   export class Nil extends Atom {
+    static instance = new Nil();
     toString() {
       return `nil`;
     }
