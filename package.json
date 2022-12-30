@@ -49,7 +49,7 @@
     "git-rev-sync": "^1.12.0",
     "glob": "^7.1.4",
     "istanbul": "^0.4.5",
-    "mocha": "^6.1.4",
+    "mocha": "^10.2.0",
     "mocha-junit-reporter": "^1.23.0",
     "mocha-performance": "^0.1.1",
     "node-fetch": "^2.6.0",
